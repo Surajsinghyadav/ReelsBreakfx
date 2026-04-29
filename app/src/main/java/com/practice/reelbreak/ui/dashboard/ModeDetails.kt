@@ -4,30 +4,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccessTime
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Block
-import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.FilterList
-import androidx.compose.material.icons.outlined.NotificationsActive
-import androidx.compose.material.icons.outlined.PauseCircle
-import androidx.compose.material.icons.outlined.PhoneAndroid
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material.icons.outlined.TipsAndUpdates
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,29 +22,15 @@ import com.practice.reelbreak.ui.theme.LocalAppColors
 @Composable
 fun StrictDetails() {
     val colors = LocalAppColors.current
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HowItWorksRow(
-                icon = Icons.Outlined.Block,
-                text = "Immediately closes Reels and Shorts the moment you open them",
-                iconTint = colors.errorRed.copy(alpha = 0.9f)
-            )
-            HowItWorksRow(
-                icon = Icons.Outlined.Bolt,
-                text = "No timer or grace period — every attempt is blocked instantly",
-                iconTint = colors.warningOrange.copy(alpha = 0.9f)
-            )
-            HowItWorksRow(
-                icon = Icons.Outlined.PhoneAndroid,
-                text = "Works across Instagram, YouTube, Snapchat & Facebook",
-                iconTint = Color.White.copy(alpha = 0.7f)
-            )
-            HowItWorksRow(
-                icon = Icons.Outlined.Shield,
-                text = "Best choice if you want to stop the habit completely",
-                iconTint = colors.successGreen.copy(alpha = 0.9f)
-            )
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Blocks all reels & shorts the moment you open any short-form feed. No timer, no grace period.",
+            color = Color.White.copy(alpha = 0.80f),
+            fontSize = 13.sp,
+            lineHeight = 18.sp
+        )
     }
+}
 
 @Composable
 fun LimitSettingsContent(
@@ -69,133 +41,136 @@ fun LimitSettingsContent(
     onReelDecrement: () -> Unit,
     onReelIncrement: () -> Unit
 ) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
-    val colors = LocalAppColors.current
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-
-        CompactStepper(
-            label = "Daily time limit",
-            value = dailyTimeLimitMinutes,
-            unit = "min",
+        // Daily Time Limit row — Figma style with label, value, and +/- stepper
+        LimitRow(
+            label = "Daily Time Limit",
+            value = "$dailyTimeLimitMinutes min",
             onDecrement = onTimeDecrement,
             onIncrement = onTimeIncrement
         )
 
-        CompactStepper(
-            label = "Daily reel limit",
-            value = dailyReelLimit,
-            unit = "reels",
+        // Visual slider bar for time
+        LimitSliderBar(
+            value = dailyTimeLimitMinutes.toFloat(),
+            max = 200f
+        )
+
+        Spacer(Modifier.height(4.dp))
+
+        // Daily Reel Count row
+        LimitRow(
+            label = "Daily Reel Count",
+            value = "$dailyReelLimit reels",
             onDecrement = onReelDecrement,
             onIncrement = onReelIncrement
         )
 
-        HorizontalDivider(
-            color = Color.White.copy(alpha = 0.1f),
-            thickness = 0.8.dp
+        LimitSliderBar(
+            value = dailyReelLimit.toFloat(),
+            max = 100f
         )
-
-        // ── How it works section ──
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            HowItWorksRow(
-                icon = Icons.Outlined.AccessTime,
-                text = "Set a daily time limit and/or a max reel count — whichever limit is hit first will trigger the block",
-                iconTint = colors.blueAccent.copy(alpha = 0.9f)
-            )
-            HowItWorksRow(
-                icon = Icons.Outlined.PauseCircle,
-                text = "Once your limit is reached, reels are blocked for the rest of the day",
-                iconTint = colors.warningOrange.copy(alpha = 0.9f)
-            )
-            HowItWorksRow(
-                icon = Icons.Outlined.Refresh,
-                text = "Your limit resets automatically at midnight every day",
-                iconTint = colors.successGreen.copy(alpha = 0.9f)
-            )
-            HowItWorksRow(
-                icon = Icons.Outlined.NotificationsActive,
-                text = "You will get a nudge when you are close to hitting your limit",
-                iconTint = colors.purpleSoft.copy(alpha = 0.9f)
-            )
-        }
-
     }
 }
 
+@Composable
+private fun LimitRow(
+    label: String,
+    value: String,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.90f),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = value,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Minus button
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.20f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDecrement
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("−", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
+
+        // Plus button
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.20f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onIncrement
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("+", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun LimitSliderBar(value: Float, max: Float) {
+    val fraction = (value / max).coerceIn(0f, 1f)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(Color.White.copy(alpha = 0.20f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fraction)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color.White)
+        )
+    }
+}
 
 @Composable
 fun SmartFilterDetails() {
-    val colors = LocalAppColors.current
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-
-        // Coming soon badge
-       Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(colors.purplePrimary.copy(alpha = 0.18f))
-                .border(
-                    width = 1.dp,
-                    color = colors.purplePrimary.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(8.dp)
-                )
-                .padding(horizontal = 10.dp, vertical = 5.dp)
-        ) {
-            Text(
-                text = "Coming Soon",
-                color = colors.purpleSoft,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        Spacer(Modifier.height(2.dp))
-
-        HowItWorksRow(
-            icon = Icons.Outlined.FilterList,
-            text = "Filters reels intelligently instead of blocking them all",
-            iconTint = colors.purpleSoft.copy(alpha = 0.9f)
-        )
-        HowItWorksRow(
-            icon = Icons.Outlined.AutoAwesome,
-            text = "Planned: allow content only from creators you have liked",
-            iconTint = colors.blueAccent.copy(alpha = 0.9f)
-        )
-        HowItWorksRow(
-            icon = Icons.Outlined.TipsAndUpdates,
-            text = "Will adapt based on your usage patterns over time",
-            iconTint = colors.warningOrange.copy(alpha = 0.9f)
-        )
-    }
-}
-
-
-
-@Composable
-fun HowItWorksRow(
-    icon: ImageVector,
-    text: String,
-    iconTint: Color = Color.White.copy(alpha = 0.75f)
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(15.dp)
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = text,
+            text = "Only allow reels from accounts you follow or have liked before. Coming soon.",
             color = Color.White.copy(alpha = 0.80f),
-            fontSize = 12.sp,
-            lineHeight = 17.sp,
-            modifier = Modifier.weight(1f)
+            fontSize = 13.sp,
+            lineHeight = 18.sp
         )
     }
 }
 
-
+// Keep CompactStepper for any backwards compatibility
 @Composable
 fun CompactStepper(
     label: String,
@@ -205,88 +180,38 @@ fun CompactStepper(
     onIncrement: () -> Unit
 ) {
     val colors = LocalAppColors.current
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(
-                Color.Black.copy(
-                    alpha = if (colors.isDark) 0.22f else 0.06f
-                )
-            )
+            .background(Color.Black.copy(alpha = if (colors.isDark) 0.22f else 0.06f))
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = label,
-            color = colors.textPrimary.copy(alpha = 0.92f),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium
-        )
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // − button
+        Text(text = label, color = colors.textPrimary.copy(alpha = 0.92f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(
-                        Color.White.copy(
-                            alpha = if (colors.isDark) 0.12f else 0.16f
-                        )
-                    )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onDecrement
-                    ),
+                modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp))
+                    .background(Color.White.copy(alpha = if (colors.isDark) 0.12f else 0.16f))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDecrement),
                 contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "−",
-                    color = colors.textPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Value
-            Text(
-                text = "$value $unit",
-                color = colors.textPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            // + button
+            ) { Text("−", color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+            Text("$value $unit", color = colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(
-                        Color.White.copy(
-                            alpha = if (colors.isDark) 0.12f else 0.16f
-                        )
-                    )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onIncrement
-                    ),
+                modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp))
+                    .background(Color.White.copy(alpha = if (colors.isDark) 0.12f else 0.16f))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onIncrement),
                 contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "+",
-                    color = colors.textPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            ) { Text("+", color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
         }
+    }
+}
+
+@Composable
+fun HowItWorksRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, iconTint: Color = Color.White.copy(alpha = 0.75f)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+        androidx.compose.material3.Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(15.dp))
+        Text(text = text, color = Color.White.copy(alpha = 0.80f), fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.weight(1f))
     }
 }

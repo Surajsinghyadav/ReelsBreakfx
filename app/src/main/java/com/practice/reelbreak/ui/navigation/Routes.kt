@@ -1,8 +1,22 @@
 package com.practice.reelbreak.ui.navigation
 
-object Routes{
-    const val ONBOARDING = "onboarding"
+import androidx.navigation3.runtime.NavKey
+import kotlinx.serialization.Serializable
+
+@Serializable
+data object OnboardingKey : NavKey
+
+@Serializable
+data object DashboardKey : NavKey
+
+@Serializable
+data object FocusKey : NavKey
+
+@Serializable
+data object SettingsKey : NavKey
+
+object Routes {
     const val DASHBOARD = "dashboard"
     const val FOCUS = "focus"
-    const val SETTINGS= "settings"
+    const val SETTINGS = "settings"
 }

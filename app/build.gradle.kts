@@ -7,6 +7,7 @@ plugins {
 
     //hilt plugin
     alias(libs.plugins.hilt)
+    alias(libs.plugins.jetbrains.kotlin.serialization)
 
 }
 
@@ -31,17 +32,22 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
+
     buildFeatures {
         compose = true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
 }
 
@@ -92,8 +98,8 @@ dependencies {
 
     // Navigation
     implementation(libs.androidx.navigation.runtime.ktx)
-    val nav_version = "2.9.3"
-    implementation("androidx.navigation:navigation-compose:$nav_version")
+//    val nav_version = "2.9.3"
+//    implementation("androidx.navigation:navigation-compose:$nav_version")
 
     //Room Database
        implementation(libs.androidx.room.ktx)
@@ -117,4 +123,8 @@ dependencies {
     implementation(libs.androidx.hilt.android)
     ksp(libs.androidx.hilt.compiler)
     implementation(libs.androidx.hilt.compose)
+
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.kotlinx.serialization)
 }

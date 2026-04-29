@@ -1,39 +1,33 @@
 package com.practice.reelbreak.ui.dashboard
 
-
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material3.Icon
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.practice.reelbreak.ui.navigation.Routes
 import com.practice.reelbreak.ui.theme.LocalAppColors
@@ -45,9 +39,9 @@ data class NavItem(
 )
 
 val navItems = listOf(
-    NavItem(Icons.Filled.Home,     "Home",     Routes.DASHBOARD),
-    NavItem(Icons.Filled.Shield,   "Focus", Routes.FOCUS),
-    NavItem(Icons.Filled.Settings, "Settings", Routes.SETTINGS)
+    NavItem(Icons.Filled.Home,     "Dashboard", Routes.DASHBOARD),
+    NavItem(Icons.Filled.Shield,   "Focus",     Routes.FOCUS),
+    NavItem(Icons.Filled.Settings, "Settings",  Routes.SETTINGS)
 )
 
 @Composable
@@ -57,56 +51,49 @@ fun FloatingButtonGroup(
     modifier: Modifier = Modifier
 ) {
     val colors = LocalAppColors.current
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(horizontal = 24.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Outer glow shadow layer
+        // Subtle shadow for floating effect
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(68.dp)
+                .height(62.dp)
                 .shadow(
-                    elevation = 24.dp,
-                    shape = RoundedCornerShape(36.dp),
-                    ambientColor = colors.glowPurple,
-                    spotColor = colors.glowPurple
+                    elevation = 16.dp,
+                    shape = RoundedCornerShape(32.dp),
+                    ambientColor = if (colors.isDark) Color(0x408B5CF6) else Color(0x306B3FA0),
+                    spotColor   = if (colors.isDark) Color(0x408B5CF6) else Color(0x306B3FA0)
                 )
         )
 
-        // Glass card
+        // Nav bar background
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .clip(RoundedCornerShape(32.dp))
+                .height(58.dp)
+                .clip(RoundedCornerShape(29.dp))
                 .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            Color(0x99120D1E),
-                            Color(0xBB1A1228),
-                        )
-                    )
+                    if (colors.isDark)
+                        Brush.linearGradient(listOf(Color(0xCC1C1230), Color(0xCC160E28)))
+                    else
+                        Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFFAF8FF)))
                 )
                 .border(
                     width = 1.dp,
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                         colors.borderPurple,
-                          colors.borderSubtle,
-                            colors.borderPurple
-                        )
-                    ),
-                    shape = RoundedCornerShape(36.dp)
+                    color = if (colors.isDark) Color(0x33A78BFA) else Color(0xFFE0D8F0),
+                    shape = RoundedCornerShape(29.dp)
                 )
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             navItems.forEach { item ->
-                NavBarItem(
+                FigmaNavItem(
                     item = item,
                     isSelected = selectedRoute == item.route,
                     onClick = { onItemSelected(item.route) },
@@ -118,41 +105,26 @@ fun FloatingButtonGroup(
 }
 
 @Composable
-private fun NavBarItem(
+private fun FigmaNavItem(
     item: NavItem,
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalAppColors.current
-    val iconColor by animateColorAsState(
-        targetValue = if (isSelected) colors.textPrimary else colors.textMuted,
-        animationSpec = tween(durationMillis = 250),
-        label = "iconColor"
-    )
-
-    val pillHeight by animateDpAsState(
-        targetValue = if (isSelected) 48.dp else 40.dp,
-        animationSpec = tween(durationMillis = 250),
-        label = "pillHeight"
-    )
 
     Box(
         modifier = modifier
-            .height(pillHeight)
-            .clip(RoundedCornerShape(24.dp))
+            .height(46.dp)
+            .clip(RoundedCornerShape(23.dp))
             .background(
                 if (isSelected) {
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF9B3DFF),
-                            Color(0xFF5A0EA8)
-                        )
-                    )
+                    if (colors.isDark)
+                        Brush.verticalGradient(listOf(Color(0xFF7C3AED), Color(0xFF4C1D95)))
+                    else
+                        Brush.verticalGradient(listOf(Color(0xFFEDE8FF), Color(0xFFDDD0FF)))
                 } else {
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Transparent)
-                    )
+                    Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent))
                 }
             )
             .clickable(
@@ -163,37 +135,34 @@ private fun NavBarItem(
         contentAlignment = Alignment.Center
     ) {
         if (isSelected) {
-            // Selected: icon + label stacked
+            // Selected state: icon + dot indicator below
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(horizontal = 12.dp)
             ) {
                 Icon(
                     imageVector = item.icon,
                     contentDescription = item.label,
-                    tint = iconColor,
+                    tint = if (colors.isDark) Color.White else Color(0xFF6B3FA0),
                     modifier = Modifier.size(18.dp)
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(Modifier.height(1.dp))
                 Text(
                     text = item.label,
-                    color = colors.textPrimary,
+                    color = if (colors.isDark) Color.White else Color(0xFF6B3FA0),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
         } else {
-            // Unselected: icon only
+            // Unselected: icon only, muted
             Icon(
                 imageVector = item.icon,
                 contentDescription = item.label,
-                tint = iconColor,
+                tint = if (colors.isDark) colors.textMuted else Color(0xFFAA9FC8),
                 modifier = Modifier.size(22.dp)
             )
         }
     }
 }
-
-
-
-

@@ -1,44 +1,25 @@
 package com.practice.reelbreak.ui.focusedmode
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
+import android.provider.Settings
+import android.content.ComponentName
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -46,12 +27,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.*
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.practice.reelbreak.R
+import com.practice.reelbreak.core.accessibility.ReelsAccessibilityService
 import com.practice.reelbreak.ui.component.MainScaffold
-import com.practice.reelbreak.ui.focused_mode.FocusHeader
-import com.practice.reelbreak.ui.focused_mode.StartFocusButton
 import com.practice.reelbreak.ui.focused_mode.TimerSelectorRow
+import com.practice.reelbreak.ui.permission.PermissionBottomSheet
+import com.practice.reelbreak.ui.permission.PermissionSheetType
 import com.practice.reelbreak.ui.theme.LocalAppColors
+import com.practice.reelbreak.viewmodel.PermissionsViewModel
 
 data class FocusAppChip(
     val name: String,
@@ -62,15 +47,17 @@ data class FocusAppChip(
 private val focusApps = listOf(
     FocusAppChip("Instagram", "com.instagram.android", R.drawable.ic_instagram),
     FocusAppChip("YouTube", "com.google.android.youtube", R.drawable.ic_youtube),
-    FocusAppChip("Facebook", "com.facebook.katana", R.drawable.ic_facebook),
     FocusAppChip("TikTok", "com.zhiliaoapp.musically", R.drawable.ic_tiktok),
+    FocusAppChip("Facebook", "com.facebook.katana", R.drawable.ic_facebook),
     FocusAppChip("Snapchat", "com.snapchat.android", R.drawable.ic_snapchat),
     FocusAppChip("Twitter", "com.twitter.android", R.drawable.ic_twitter)
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FocusScreen(
     viewModel: FocusViewModel = hiltViewModel(),
+    permissionsViewModel: PermissionsViewModel = hiltViewModel(),
     selectedTab: Int = 1,
     onTabSelected: (Int) -> Unit
 ) {
@@ -78,527 +65,551 @@ fun FocusScreen(
     val colors = LocalAppColors.current
     val context = LocalContext.current
 
-// Show validation error as Toast
+    val permissionUiState by permissionsViewModel.uiState.collectAsState()
+    val isAccessibilityGranted = permissionUiState.permissionState.accessibilityGranted
+    val sheetState by permissionsViewModel.sheetState.collectAsState()
+    val permModalState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val nowGranted = isAccessibilityServiceEnabled(context)
+                if (nowGranted) {
+//                    suraj
+//                    permissionsViewModel.updateAccessibilityGranted(true)
+                    permissionsViewModel.dismissSheet()
+                } else {
+                    permissionsViewModel.checkAndShowSheetIfNeeded(context)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(Unit) { permissionsViewModel.checkAndShowSheetIfNeeded(context) }
+
+    if (sheetState.isVisible && sheetState.type != null) {
+        PermissionBottomSheet(
+            type = sheetState.type!!,
+            sheetState = permModalState,
+            onDismiss = { permissionsViewModel.dismissSheet() },
+            onAgree = { permissionsViewModel.onPermissionSheetAgree(context, sheetState.type!!) }
+        )
+    }
+
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let { msg ->
             android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
             viewModel.dismissError()
         }
     }
-    // Total millis = selectedMinutes * 60_000 (used for progress arc)
+
     val totalMillis = state.selectedMinutes.toLong() * 60_000L
-    // Progress from 1.0 (full) down to 0.0 (done)
     val progress = if (totalMillis > 0 && state.isFocusActive)
         (state.remainingMillis.toFloat() / totalMillis.toFloat()).coerceIn(0f, 1f)
     else 1f
 
-    MainScaffold(
-        selectedTab = selectedTab,
-        onTabSelected = onTabSelected
-    ) { paddingValues ->
-        Box(
+    MainScaffold(selectedTab = selectedTab, onTabSelected = onTabSelected) { paddingValues ->
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(brush = colors.background)
+                .background(colors.background)
         ) {
+            // Purple header banner — matches Figma
+            FocusHeaderBanner(isFocusActive = state.isFocusActive)
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
-                    .padding(top = 16.dp, bottom = 120.dp)
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 20.dp, bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-
-                // ── Header ──────────────────────────────────────────────
-                FocusHeader(isFocusActive = state.isFocusActive)
-                Spacer(modifier = Modifier.height(28.dp))
-                // ── Currently Blocked Apps (only when session is active) ────────────
-                if (state.isFocusActive && state.selectedApps.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    CurrentlyBlockedSection(blockedPackages = state.selectedApps)
-                }
-                Spacer(modifier = Modifier.height(28.dp))
-
-                // ── Countdown Circle (always visible; shows time when active) ──
-                CountdownTimerCircle(
+                // Timer card — white card with circular timer + start button
+                TimerCard(
                     remainingMillis = state.remainingMillis,
                     isActive = state.isFocusActive,
                     progress = progress,
-                    onEditClick = { /* allows changing duration when not active */ }
-                )
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                // ── Session Duration (disabled while active) ─────────────
-                SectionHeader(
-                    icon = {
-                        Icon(
-                            Icons.Filled.Timer,
-                            contentDescription = null,
-                            tint = colors.purplePrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    title = "Session Duration"
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                TimerSelectorRow(
-                    selectedTime = state.selectedMinutes.toLong(),
-                    onTimeSelected = { minutes: Int ->
-                        if (!state.isFocusActive) viewModel.setSelectedMinutes(minutes)
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                // ── Block These Apps ─────────────────────────────────────
-                SectionHeader(
-                    icon = {
-                        Icon(
-                            Icons.Filled.Shield,
-                            contentDescription = null,
-                            tint = colors.purplePrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    title = "Block These Apps"
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                BlockAppsSection(
-                    selectedPackages = state.selectedApps,
-                  //  isEnabled = !state.isFocusActive,
-                    onToggle = { pkg -> viewModel.toggleAppSelection(pkg) }
-                )
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                // ── Quote ────────────────────────────────────────────────
-                QuoteCard()
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                // ── Start / Stop button ──────────────────────────────────
-                StartFocusButton(
                     isFocusActive = state.isFocusActive,
                     onToggle = {
-                        if (state.isFocusActive) viewModel.stopFocusSession()
-                        else viewModel.startFocusSession()
+                        val granted = isAccessibilityServiceEnabled(context)
+                        when {
+                            !granted -> permissionsViewModel.showSheet(PermissionSheetType.ACCESSIBILITY)
+                            state.isFocusActive -> viewModel.stopFocusSession()
+                            else -> viewModel.startFocusSession()
+                        }
                     }
+                )
+
+                // Duration card
+                DurationCard(
+                    selectedMinutes = state.selectedMinutes,
+                    enabled = !state.isFocusActive,
+                    onSelect = { viewModel.setSelectedMinutes(it) }
+                )
+
+                // Block Apps card
+                BlockAppsCard(
+                    selectedPackages = state.selectedApps,
+                    onToggle = { pkg -> viewModel.toggleAppSelection(pkg) }
                 )
             }
         }
     }
 }
 
-// ── Circular countdown timer ──────────────────────────────────────────────────
+// ── Purple header banner ──────────────────────────────────────────────────────
 @Composable
-private fun CountdownTimerCircle(
+private fun FocusHeaderBanner(isFocusActive: Boolean) {
+    val colors = LocalAppColors.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+            .background(
+                if (colors.isDark)
+                    Brush.linearGradient(listOf(Color(0xFF2D1060), Color(0xFF1A0840)))
+                else
+                    Brush.linearGradient(listOf(Color(0xFF6B3FA0), Color(0xFF4A2070)))
+            )
+            .padding(horizontal = 20.dp, vertical = 0.dp)
+            .padding(top = 48.dp, bottom = 20.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Focus Mode",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = if (isFocusActive) "Session in progress" else "Block distracting apps",
+                fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.80f)
+            )
+        }
+    }
+}
+
+// ── Timer Card ────────────────────────────────────────────────────────────────
+@Composable
+private fun TimerCard(
     remainingMillis: Long,
     isActive: Boolean,
     progress: Float,
-    onEditClick: () -> Unit
+    isFocusActive: Boolean,
+    onToggle: () -> Unit
 ) {
-    // Animate the sweep angle smoothly
+    val colors = LocalAppColors.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (colors.isDark) colors.cardSurface
+                else Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFFAF8FF)))
+            )
+            .border(
+                1.dp,
+                if (colors.isDark) colors.borderSubtle else Color(0xFFE8E0F5),
+                RoundedCornerShape(20.dp)
+            )
+            .padding(24.dp)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            // Circular timer
+            FigmaTimerCircle(
+                remainingMillis = remainingMillis,
+                isActive = isActive,
+                progress = progress
+            )
+
+            // Start/Stop button — Figma pill style
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .shadow(8.dp, RoundedCornerShape(999.dp), spotColor = Color(0x306B3FA0))
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(
+                        if (isFocusActive)
+                            Brush.linearGradient(listOf(Color(0xFF1A7A44), Color(0xFF22A860)))
+                        else
+                            Brush.linearGradient(listOf(Color(0xFF6B3FA0), Color(0xFF4A2070)))
+                    )
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = onToggle
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFocusActive) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = if (isFocusActive) "Stop Focus Session" else "Start Focus Session",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Figma-style circular timer ────────────────────────────────────────────────
+@Composable
+private fun FigmaTimerCircle(
+    remainingMillis: Long,
+    isActive: Boolean,
+    progress: Float
+) {
+    val colors = LocalAppColors.current
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
-        animationSpec = tween(durationMillis = 800),
+        animationSpec = tween(800),
         label = "timerProgress"
     )
 
     val totalSeconds = remainingMillis / 1000L
-    val hours = totalSeconds / 3600
+    val hours   = totalSeconds / 3600
     val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
 
-    val purpleColor = Color(0xFF9333EA)
-    val purpleTrack = Color(0xFF2D1B4E)
+    val trackColor = if (colors.isDark) Color(0xFF2D1B4E) else Color(0xFFEDE8FF)
+    val arcColor   = if (colors.isDark) Color(0xFF8B5CF6) else Color(0xFF6B3FA0)
 
     Box(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.size(200.dp),
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier.size(200.dp),
-            contentAlignment = Alignment.Center
+        Canvas(modifier = Modifier.size(200.dp)) {
+            val stroke = 14.dp.toPx()
+            val arcSz  = size.width - stroke
+
+            // Track
+            drawArc(
+                color = trackColor,
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = Offset(stroke / 2, stroke / 2),
+                size = Size(arcSz, arcSz),
+                style = Stroke(width = stroke, cap = StrokeCap.Round)
+            )
+            // Progress
+            drawArc(
+                color = arcColor,
+                startAngle = -90f,
+                sweepAngle = 360f * animatedProgress,
+                useCenter = false,
+                topLeft = Offset(stroke / 2, stroke / 2),
+                size = Size(arcSz, arcSz),
+                style = Stroke(width = stroke, cap = StrokeCap.Round)
+            )
+        }
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            // Circular arc drawn with Canvas
-            Canvas(modifier = Modifier.size(200.dp)) {
-                val strokeWidth = 14.dp.toPx()
-                val arcSize = size.width - strokeWidth
+            if (isActive) {
+                val timeStr = if (hours > 0)
+                    String.format("%02d:%02d:%02d", hours, minutes, seconds)
+                else
+                    String.format("%02d:%02d", minutes, seconds)
 
-                // Background track circle
-                drawArc(
-                    color = purpleTrack,
-                    startAngle = -90f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
-                    size = Size(arcSize, arcSize),
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                Text(
+                    text = timeStr,
+                    color = if (colors.isDark) Color.White else Color(0xFF1A1035),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold
                 )
-
-                // Progress arc
-                drawArc(
-                    brush = Brush.sweepGradient(
-                        colors = listOf(
-                            Color(0xFF7C3AED),
-                            Color(0xFF9333EA),
-                            Color(0xFFA855F7),
-                            Color(0xFF7C3AED)
-                        )
-                    ),
-                    startAngle = -90f,
-                    sweepAngle = 360f * animatedProgress,
-                    useCenter = false,
-                    topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
-                    size = Size(arcSize, arcSize),
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                Text(
+                    text = "Remaining",
+                    color = if (colors.isDark) colors.textSecondary else Color(0xFF6B5F88),
+                    fontSize = 12.sp
                 )
-            }
-
-            // Inner content
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                if (isActive) {
-                    // Show HH MM SS countdown
-                    if (hours > 0) {
-                        Row(
-                            verticalAlignment = Alignment.Bottom,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = String.format("%02d", hours),
-                                color = Color.White,
-                                fontSize = 36.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "h ",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            Text(
-                                text = String.format("%02d", minutes),
-                                color = Color.White,
-                                fontSize = 36.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "m",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                        }
-                    } else {
-                        Row(
-                            verticalAlignment = Alignment.Bottom,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = String.format("%02d", minutes),
-                                color = Color.White,
-                                fontSize = 36.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "m ",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            Text(
-                                text = String.format("%02d", seconds),
-                                color = Color.White,
-                                fontSize = 36.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "s",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = "Remaining",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp
-                    )
-
-                } else {
-                    // Not active – show a ready state
-                    Text(
-                        text = "Ready",
-                        color = Color.White,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "to focus",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 13.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    // Edit hint
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onEditClick() }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            Icons.Filled.Edit,
-                            contentDescription = "Edit",
-                            tint = Color(0xFF9333EA),
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Text(
-                            text = "Edit",
-                            color = Color(0xFF9333EA),
-                            fontSize = 12.sp
-                        )
-                    }
-                }
+            } else {
+                // Show selected time when ready — Figma shows "00:30:00"
+                Text(
+                    text = "00:30:00",
+                    color = if (colors.isDark) Color.White else Color(0xFF1A1035),
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Ready to start",
+                    color = if (colors.isDark) colors.textSecondary else Color(0xFF6B5F88),
+                    fontSize = 12.sp
+                )
             }
         }
     }
 }
 
-//
-
+// ── Duration Card ─────────────────────────────────────────────────────────────
 @Composable
-private fun SectionHeader(
-    icon: @Composable () -> Unit,
-    title: String
+private fun DurationCard(
+    selectedMinutes: Int,
+    enabled: Boolean,
+    onSelect: (Int) -> Unit
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    val colors = LocalAppColors.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (colors.isDark) colors.cardSurface
+                else Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFFAF8FF)))
+            )
+            .border(
+                1.dp,
+                if (colors.isDark) colors.borderSubtle else Color(0xFFE8E0F5),
+                RoundedCornerShape(20.dp)
+            )
+            .padding(20.dp)
     ) {
-        icon()
-        Text(
-            text = title,
-            color = Color.White,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(
+                text = "Duration",
+                color = if (colors.isDark) colors.textPrimary else Color(0xFF1A1035),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            // Figma pill-shaped duration chips
+            FigmaDurationRow(
+                selectedMinutes = selectedMinutes,
+                enabled = enabled,
+                onSelect = onSelect
+            )
+        }
     }
 }
 
+private data class DurationChip(val minutes: Int, val label: String)
+
+private val durationChips = listOf(
+    DurationChip(15,  "15m"),
+    DurationChip(30,  "30m"),
+    DurationChip(60,  "1h"),
+    DurationChip(120, "2h"),
+    DurationChip(240, "4h"),
+    DurationChip(480, "8h"),
+    DurationChip(1440,"1d"),
+)
 
 @Composable
-fun BlockAppsSection(
+private fun FigmaDurationRow(
+    selectedMinutes: Int,
+    enabled: Boolean,
+    onSelect: (Int) -> Unit
+) {
+    val colors = LocalAppColors.current
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(durationChips) { chip ->
+            val isSelected = chip.minutes == selectedMinutes
+            Box(
+                modifier = Modifier
+                    .height(40.dp)
+                    .widthIn(min = 56.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(
+                        if (isSelected) {
+                            if (colors.isDark) Brush.linearGradient(listOf(Color(0xFF7C3AED), Color(0xFF4C1D95)))
+                            else Brush.linearGradient(listOf(Color(0xFF6B3FA0), Color(0xFF4A2070)))
+                        } else {
+                            if (colors.isDark) Brush.linearGradient(listOf(Color(0xFF1C1230), Color(0xFF160E28)))
+                            else Brush.linearGradient(listOf(Color(0xFFEDE8FF), Color(0xFFE8E0FF)))
+                        }
+                    )
+                    .border(
+                        width = if (isSelected) 0.dp else 1.dp,
+                        color = if (colors.isDark) Color(0xFF2D1B4E) else Color(0xFFD0C4F0),
+                        shape = RoundedCornerShape(999.dp)
+                    )
+                    .then(
+                        if (enabled) Modifier.clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null
+                        ) { onSelect(chip.minutes) } else Modifier
+                    )
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = chip.label,
+                    color = if (isSelected) Color.White
+                    else if (colors.isDark) colors.textSecondary else Color(0xFF4A4068),
+                    fontSize = 14.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
+        }
+    }
+}
+
+// ── Block Apps Card ───────────────────────────────────────────────────────────
+@Composable
+private fun BlockAppsCard(
     selectedPackages: Set<String>,
-    isEnabled: Boolean = true,
     onToggle: (String) -> Unit
 ) {
     val colors = LocalAppColors.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (colors.isDark) colors.cardSurface
+                else Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFFAF8FF)))
+            )
+            .border(
+                1.dp,
+                if (colors.isDark) colors.borderSubtle else Color(0xFFE8E0F5),
+                RoundedCornerShape(20.dp)
+            )
+            .padding(20.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(
+                text = "Block Apps",
+                color = if (colors.isDark) colors.textPrimary else Color(0xFF1A1035),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold
+            )
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        focusApps.chunked(3).forEach { rowApps ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                rowApps.forEach { app ->
-                    val isSelected = selectedPackages.contains(app.packageName)
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(90.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                if (isSelected)
-                                    Brush.linearGradient(listOf(Color(0xFF4C1D95), Color(0xFF1E3A8A)))
-                                else
-                                    Brush.linearGradient(listOf(Color(0xFF1C1233), Color(0xFF140B26)))
-                            )
-                            .border(
-                                1.5.dp,
-                                if (isSelected) Color(0xFFB794F4) else Color(0xFF2D1B4E),
-                                RoundedCornerShape(16.dp)
-                            )
-                            .then(
-                                if (isEnabled) Modifier.clickable { onToggle(app.packageName) }
-                                else Modifier
-                            )
-                            .padding(8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box {
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color.Black.copy(alpha = 0.25f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Image(
-                                        painter = painterResource(id = app.iconRes),
-                                        contentDescription = app.name,
-                                        modifier = Modifier.size(26.dp)
-                                    )
-                                }
-                                if (isSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .align(Alignment.TopEnd)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF22C55E)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "✓",
-                                            color = Color.White,
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                            Text(
-                                text = app.name,
-                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.55f),
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                maxLines = 1
-                            )
-                        }
+            // 2-column grid matching Figma
+            focusApps.chunked(2).forEach { rowApps ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    rowApps.forEach { app ->
+                        val isSelected = selectedPackages.contains(app.packageName)
+                        FigmaAppChip(
+                            app = app,
+                            isSelected = isSelected,
+                            onToggle = { onToggle(app.packageName) },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                }
-                // Fill empty slots
-                repeat(3 - rowApps.size) {
-                    Spacer(modifier = Modifier.weight(1f))
+                    if (rowApps.size < 2) Spacer(Modifier.weight(1f))
                 }
             }
         }
     }
 }
 
-
 @Composable
-fun QuoteCard() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
+private fun FigmaAppChip(
+    app: FocusAppChip,
+    isSelected: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalAppColors.current
+    Box(
+        modifier = modifier
+            .height(90.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF1C1233))
-            .border(1.dp, Color(0xFF2D1B4E), RoundedCornerShape(16.dp))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .background(
+                if (isSelected) {
+                    if (colors.isDark) Brush.linearGradient(listOf(Color(0xFF2D1B4E), Color(0xFF1E1040)))
+                    else Brush.linearGradient(listOf(Color(0xFFEDE8FF), Color(0xFFE0D8FF)))
+                } else {
+                    if (colors.isDark) Brush.linearGradient(listOf(Color(0xFF1C1230), Color(0xFF160E28)))
+                    else Brush.linearGradient(listOf(Color(0xFFF8F5FF), Color(0xFFF0EBFF)))
+                }
+            )
+            .border(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) {
+                    if (colors.isDark) Color(0xFF8B5CF6) else Color(0xFF6B3FA0)
+                } else {
+                    if (colors.isDark) Color(0xFF2D1B4E) else Color(0xFFD8CFF0)
+                },
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = onToggle
+            )
+            .padding(8.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text(text = "💡", fontSize = 22.sp)
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = "Motivation",
-                color = Color(0xFFB794F4),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = "\"The secret of getting ahead is getting started.\"",
-                color = Color.White.copy(alpha = 0.85f),
-                fontSize = 13.sp,
-                lineHeight = 18.sp
-            )
-        }
-    }
-}
-
-
-
-@Composable
-private fun CurrentlyBlockedSection(blockedPackages: Set<String>) {
-
-    // map package → readable name (same as AppBlockedScreen)
-    fun pkgToName(pkg: String) = when (pkg) {
-        "com.instagram.android"       -> "Instagram"
-        "com.google.android.youtube"  -> "YouTube"
-        "com.facebook.katana"         -> "Facebook"
-        "com.zhiliaoapp.musically"    -> "TikTok"
-        "com.snapchat.android"        -> "Snapchat"
-        "com.twitter.android"         -> "Twitter"
-        "com.whatsapp"                -> "WhatsApp"
-        else -> pkg.substringAfterLast(".").replaceFirstChar { it.uppercase() }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF1C1233))
-            .border(1.dp, Color(0xFF7C3AED).copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // Title row
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(text = "🔒", fontSize = 16.sp)
-            Text(
-                text = "Currently Blocked",
-                color = Color(0xFFB794F4),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        // App pills row (wrapping)
-        androidx.compose.foundation.layout.FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            blockedPackages.forEach { pkg ->
+            Box {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(Color(0xFF4C1D95).copy(alpha = 0.5f))
-                        .border(
-                            1.dp,
-                            Color(0xFF9333EA).copy(alpha = 0.6f),
-                            RoundedCornerShape(999.dp)
-                        )
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.06f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Image(
+                        painter = painterResource(id = app.iconRes),
+                        contentDescription = app.name,
+                        modifier = Modifier.size(28.dp).background(Color.White, shape = RoundedCornerShape(16.dp))
+                    )
+                }
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .align(Alignment.TopEnd)
+                            .clip(CircleShape)
+                            .background(Color(0xFF22A860)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "🚫",
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            text = pkgToName(pkg),
-                            color = Color(0xFFE9D5FF),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Text("✓", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
+            Text(
+                text = app.name,
+                color = if (isSelected) {
+                    if (colors.isDark) colors.textPrimary else Color(0xFF1A1035)
+                } else {
+                    if (colors.isDark) colors.textSecondary else Color(0xFF6B5F88)
+                },
+                fontSize = 12.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1
+            )
         }
+    }
+}
+
+fun isAccessibilityServiceEnabled(context: android.content.Context): Boolean {
+    val expectedComponent = ComponentName(context, ReelsAccessibilityService::class.java)
+    val enabledServices = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: return false
+    return enabledServices.split(":").any { entry ->
+        ComponentName.unflattenFromString(entry) == expectedComponent
     }
 }
